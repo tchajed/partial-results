@@ -1,0 +1,7 @@
+*.gz
+*.data
+*.ppm
+*.png
+*.svg
+*.csv
+*.pyc

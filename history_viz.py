@@ -70,10 +70,10 @@ def create_image_data(vertices, max_length):
 
 def write_graph(data, f):
     data = np.array([x for x in data])
-    H, xedges, yedges = np.histogram2d(data[:, 0], data[:, 1], 30)
+    histogram, xedges, yedges = np.histogram2d(data[:, 0], data[:, 1], 30)
     for row, ylabel in enumerate(yedges[:-1]):
         for col, xlabel in enumerate(xedges[:-1]):
-            freq = H[col, row]
+            freq = histogram[col, row]
             f.write("%f %f %d\n" % (xlabel, ylabel, freq))
         f.write("\n")
 

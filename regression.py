@@ -51,18 +51,31 @@ if __name__ == "__main__":
                         help="input csv with data to fit")
     parser.add_argument("-t", "--test",
                         help="test data")
+    parser.add_argument("-s", "--skip",
+                        help="comma-separated list of features to skip in inputs")
     parser.add_argument("y_feature",
                         help="name of feature to predict")
     args = parser.parse_args()
 
+    if args.skip is not None:
+        skip = set(args.skip.split(","))
+    else:
+        skip = set([])
+
+    # the y_feature is implicitly skipped for training, but allow it to be in
+    # the skipped feature list for convenience
+    skip -= {args.y_feature}
+
     model = None
     with open(args.data) as f:
         names, data = load_data(f)
+        names, data = filter_data(names, data, skip)
         x_mat, y = select_data(names, data, args.y_feature)
         model = learn_model(x_mat, y)
 
     with open(args.test) as f:
         names, data = load_data(f)
+        names, data = filter_data(names, data, skip)
         x_mat, y = select_data(names, data, args.y_feature)
         print(model)
         y_hat = model.predict(x_mat)

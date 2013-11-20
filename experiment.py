@@ -5,6 +5,8 @@ import numpy as np
 from sklearn.svm import SVR
 from sklearn.linear_model import ARDRegression
 
+import os
+
 class Experiment(object):
     def __init__(self, o):
         """ Load an experiment from a dictionary of values.
@@ -30,6 +32,8 @@ class GraphFile(object):
     def args(self):
         """ Format this graph as a pair of arguments. """
         return ["--graph", self.prefix, "--format", self.graph_format]
+    def __repr__(self):
+        return "%s [%s]" % (self.prefix, self.graph_format)
 
 
 class AbstractCli(object):
@@ -39,6 +43,9 @@ class AbstractCli(object):
         args = []
         if self.is_mpi:
             args.append("mpiexec")
+        if "MPI_MACHINEFILE" in os.environ:
+            hostfile = os.environ["MPI_MACHINEFILE"]
+            args.extend(["--hostfile", hostfile])
         args.append(self.program)
         args.extend(self.args())
         return args
@@ -117,6 +124,8 @@ class Features(object):
                 raise ValueError("unknown feature " + feat)
             indexes.append(idx)
         return Features(features, self.data[:, indexes])
+    def __repr__(self):
+        return "".join(["\t".join(self.names), "\n", repr(self.data)])
 
 
 class Evaluation(object):

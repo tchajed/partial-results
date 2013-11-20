@@ -1,0 +1,24 @@
+sample:
+  algorithm:
+    name: forest_fire
+    parameters:
+      pf: 0.65 # forward probability
+run:
+  tolerance: 1e-2 # convergence tolerance
+  accuracy_k: 1000 # top-k used in accuracy computation
+  engine: synchronous # synchronous or asynchronous
+  feature_period: 0.0 # in seconds
+evaluate:
+  learn:
+    algorithm:
+      name: SVR
+# these parameters are directly used as keyword arguments to the sklearn model
+# specified by the algorithm name
+      parameters:
+        kernel: rbf
+# list of all features to use as input (X)
+  features:
+    - d/di
+    - d^2/di^2
+# target feature to perform regression on (y)
+  target_feature: rmse

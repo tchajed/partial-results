@@ -1,28 +1,16 @@
+#!/usr/bin/env python
 # vim: et:tw=79:ts=4:sw=4
-import subprocess
+
+from __future__ import print_function, division
+
 import yaml
 import numpy as np
 from sklearn.svm import SVR
 from sklearn.linear_model import ARDRegression
 
+import subprocess
 import os
-
-class Experiment(object):
-    def __init__(self, o):
-        """ Load an experiment from a dictionary of values.
-
-        The format of this object should match that of the YAML configuration.
-
-        """
-        self.sample = o["sample"]
-        self.run = o["run"]
-        self.evaluate = o["evaluate"]
-    @classmethod
-    def from_yaml(cls, fname):
-        """ Load an experiment from a YAML file. """
-        with open(fname, "r") as f:
-            o = yaml.load(f)
-            return Experiment(o)
+from os.path import join, exists
 
 
 class GraphFile(object):
@@ -50,7 +38,9 @@ class AbstractCli(object):
         args.extend(self.args())
         return args
     def run(self):
-        subprocess.call([str(arg) for arg in self.run_args()])
+        args = [str(arg) for arg in self.run_args()]
+        print("running: ", " ".join(args))
+        subprocess.call(args)
 
 
 class SampleCli(AbstractCli):
@@ -116,6 +106,14 @@ class Features(object):
                         line.split(sep)]
                 data.append(data_row)
             return Features(names, data)
+    def to_mat(self):
+        return self.data
+    def to_col(self):
+        assert self.data.shape[1] == 1
+        return self.data[:,0]
+    def to_row(self):
+        assert data.shape[0] == 1
+        return data[0,:]
     def __getitem__(self, features):
         indexes = []
         for feat in features:
@@ -139,14 +137,81 @@ class Evaluation(object):
             model = SVR(**self.algorithm["parameters"])
         elif name == "ARDRegression":
             model = ARDRegression(**self.algorithm["parameters"])
-        raise ValueError("unknown sklearn regression algorithm " + name)
+        else:
+            raise ValueError("unknown sklearn regression algorithm " + name)
         self.model = model
     def train(self, train_fname):
         features = Features.from_file(train_fname)
-        x_mat, y = features[self.features], features[target_feature]
+        x_mat = features[self.features].to_mat()
+        y = features[(self.target_feature,)].to_col()
         self.model.fit(x_mat, y)
     def test_error(self, test_fname):
         features = Features.from_file(test_fname)
-        x_mat, y = features[self.features], features[target_feature]
+        x_mat = features[self.features].to_mat()
+        y = features[self.target_feature,].to_col()
         y_hat = self.model.predict(x_mat)
         return np.linalg.norm(y - y_hat)
+
+
+class Experiment(object):
+    def __init__(self, o):
+        """ Load an experiment from a dictionary of values.
+
+        The format of this object should match that of the YAML configuration.
+
+        """
+        self.sample = o["sample"]
+        self.run = o["run"]
+        self.evaluate = o["evaluate"]
+    @classmethod
+    def from_yaml(cls, fname):
+        """ Load an experiment from a YAML file. """
+        with open(fname, "r") as f:
+            o = yaml.load(f)
+            return Experiment(o)
+    def run_trial(self, graph, name, output_dir):
+        if not exists(output_dir):
+            os.makedirs(output_dir)
+        sampled = GraphFile(join(output_dir, name + "-sampled"))
+        sample_cli = SampleCli(self.sample["algorithm"], graph, sampled)
+        sample_cli.run()
+
+        sampled_dir = join(output_dir, name + "-sample-output")
+        partial_results_cli = PartialResultsCli(self.run, sampled,
+                sampled_dir)
+# run twice, first just to generate pageranks
+        partial_results_cli.run()
+        partial_results_cli.run()
+
+        true_dir = join(output_dir, name)
+        true_partial_results_cli = PartialResultsCli(self.run, graph, true_dir)
+        true_partial_results_cli.run()
+        true_partial_results_cli.run()
+
+        evaluation = Evaluation(self.evaluate)
+        evaluation.train(join(sampled_dir, "features.csv"))
+        error = evaluation.test_error(join(true_dir, "features.csv"))
+        return error
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--graph",
+            help="input graph prefix")
+    parser.add_argument("--format",
+            default="snap",
+            help="input graph format")
+    parser.add_argument("--experiment",
+            help="experiment YAML configuration file")
+    parser.add_argument("-n", "--name",
+            help="experiment name")
+    parser.add_argument("--output",
+            help="output directory")
+    args = parser.parse_args()
+
+    experiment = Experiment.from_yaml(args.experiment)
+    graph = GraphFile(args.graph, args.format)
+    error = experiment.run_trial(graph, args.name, args.output)
+    print(error)

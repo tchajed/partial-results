@@ -7,7 +7,7 @@ run:
   tolerance: 1e-2 # convergence tolerance
   accuracy_k: 1000 # top-k used in accuracy computation
   engine: synchronous # synchronous or asynchronous
-  feature_period: 0.0 # in seconds
+  feature_period: 0.5 # in seconds
 evaluate:
   learn:
     algorithm:

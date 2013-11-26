@@ -14,14 +14,67 @@ from os.path import join, exists
 
 
 class GraphFile(object):
-    def __init__(self, prefix, graph_format="snap"):
+    """ Represent a graph on disk.
+
+    Includes a:
+    - location (specified by file prefix)
+    - format (any of GraphLab's supported formats, such as snap or bintsv4)
+    - an optional true pagerank prefix, specifying where to find precomputed
+      final pageranks for this graph
+    - an optional feature prefix, specifing where to find fully precomputed
+      features for this graph
+
+    """
+    def __init__(self, prefix, graph_format="snap", pagerank_prefix=None,
+            feature_prefix=None):
         self.prefix = prefix
         self.graph_format = graph_format
+        self.pagerank_prefix = pagerank_prefix
+        self.feature_prefix = feature_prefix
     def args(self):
         """ Format this graph as a pair of arguments. """
-        return ["--graph", self.prefix, "--format", self.graph_format]
+        args = ["--graph", self.prefix,
+                "--format", self.graph_format]
+        return args
     def __repr__(self):
-        return "%s [%s]" % (self.prefix, self.graph_format)
+        s = "%s [%s]" % (self.prefix, self.graph_format)
+        if self.pagerank_prefix is not None:
+            s += " [pagerank]"
+        if self.feature_prefix is not None:
+            s += " [features]"
+        return s
+
+
+class GraphLibrary(object):
+    """ A collection of available graphs, indexed by name. """
+    def __init__(self, graphs):
+        self.graphs = graphs
+    @classmethod
+    def from_yaml(cls, fname):
+        def load_graph(prefix, d):
+            graph_prefix = join(prefix, d["prefix"])
+            pagerank_prefix = None
+            if d.has_key("pagerank_prefix"):
+                pagerank_prefix = join(prefix, d.get("pagerank_prefix"))
+            feature_prefix = None
+            if d.has_key("feature_prefix"):
+                feature_prefix = join(prefix, d.get("feature_prefix"))
+            graph = GraphFile(graph_prefix,
+                    graph_format=d.get("format", "snap"),
+                    pagerank_prefix=pagerank_prefix,
+                    feature_prefix=feature_prefix)
+            name = d["name"]
+            return (name, graph)
+        with open(fname, "r") as f:
+            o = yaml.load(f)
+            prefix = o.get("prefix", "")
+            graphs = o["graphs"]
+            graph_tuples = [load_graph(prefix, graph) for graph in graphs]
+            return GraphLibrary(dict(graph_tuples))
+    def __getitem__(self, name):
+        return self.graphs[name]
+    def get(self, name):
+        return self.graphs.get(name)
 
 
 class AbstractCli(object):
@@ -40,6 +93,7 @@ class AbstractCli(object):
     def run(self):
         args = [str(arg) for arg in self.run_args()]
         print("running: ", " ".join(args))
+        #raw_input('press enter to run...')
         subprocess.call(args)
 
 
@@ -74,6 +128,8 @@ class PartialResultsCli(AbstractCli):
         self.prefix = prefix
     def args(self):
         args = self.graph.args()
+        if self.graph.pagerank_prefix is not None:
+            args.extend(["--pagerank_prefix", self.graph.pagerank_prefix])
         if self.params["engine"] not in ["synchronous"]:
             raise ValueError("unknown engine " + self.params["engine"])
         args.extend(["--engine", self.params["engine"]])
@@ -183,10 +239,14 @@ class Experiment(object):
         partial_results_cli.run()
         partial_results_cli.run()
 
-        true_dir = join(output_dir, name)
-        true_partial_results_cli = PartialResultsCli(self.run, graph, true_dir)
-        true_partial_results_cli.run()
-        true_partial_results_cli.run()
+        if graph.feature_prefix is None:
+            true_dir = join(output_dir, name)
+            true_partial_results_cli = PartialResultsCli(self.run, graph, true_dir)
+            true_partial_results_cli.run()
+            if graph.pagerank_prefix is None:
+                true_partial_results_cli.run()
+        else:
+            true_dir = graph.feature_prefix
 
         evaluation = Evaluation(self.evaluate)
         evaluation.train(join(sampled_dir, "features.csv"))
@@ -199,10 +259,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--graph",
-            help="input graph prefix")
-    parser.add_argument("--format",
-            default="snap",
-            help="input graph format")
+            help="input graph name")
+    parser.add_argument("--graph_library",
+            default="graphs.yaml",
+            help="graph database filename")
     parser.add_argument("--experiment",
             help="experiment YAML configuration file")
     parser.add_argument("-n", "--name",
@@ -211,7 +271,9 @@ if __name__ == "__main__":
             help="output directory")
     args = parser.parse_args()
 
+    graph_lib = GraphLibrary.from_yaml(args.graph_library)
+    graph = graph_lib[args.graph]
+
     experiment = Experiment.from_yaml(args.experiment)
-    graph = GraphFile(args.graph, args.format)
     error = experiment.run_trial(graph, args.name, args.output)
     print(error)

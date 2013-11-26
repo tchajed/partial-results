@@ -1,0 +1,12 @@
+# an optional global prefix; effectively changes the working directory for
+# graph and pagerank prefixes for all graphs
+prefix: "/Users/tej/data/graphs/"
+graphs:
+  - name: "wiki"
+    prefix: "wiki-talk/wiki-Talk.txt"
+    format: "snap"
+    feature_prefix: "wiki-talk/"
+  - name: "as-caida"
+    prefix: "as-caida/as-caida20071105.txt"
+    format: "snap"
+    feature_prefix: "as-caida/"

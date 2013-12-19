@@ -84,9 +84,9 @@ class AbstractCli(object):
         args = ["mpiexec"]
         if self.is_mpi:
             args.extend(["-mca", "btl", "^openib"])
-        if "MPI_MACHINEFILE" in os.environ:
-            hostfile = os.environ["MPI_MACHINEFILE"]
-            args.extend(["--hostfile", hostfile])
+            if "MPI_MACHINEFILE" in os.environ:
+                hostfile = os.environ["MPI_MACHINEFILE"]
+                args.extend(["--hostfile", hostfile])
         args.append(self.program)
         args.extend(self.args())
         return args

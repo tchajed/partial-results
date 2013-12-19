@@ -81,9 +81,9 @@ class AbstractCli(object):
     program = None
     is_mpi = False
     def run_args(self):
-        args = []
+        args = ["mpiexec"]
         if self.is_mpi:
-            args.extend(["mpiexec", "-mca", "btl", "^openib"])
+            args.extend(["-mca", "btl", "^openib"])
         if "MPI_MACHINEFILE" in os.environ:
             hostfile = os.environ["MPI_MACHINEFILE"]
             args.extend(["--hostfile", hostfile])
@@ -99,7 +99,7 @@ class AbstractCli(object):
 
 class SampleCli(AbstractCli):
     program = "sample"
-    is_mpi = True
+    is_mpi = False
 
     def __init__(self, algorithm, graph, output):
         self.algorithm = algorithm

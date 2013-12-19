@@ -15,8 +15,8 @@ class VertexFeatures(object):
     def __init__(self, line):
         parts = line.split()
         parts.pop(0) # vid
-        self.in_edges = int(parts[0])
-        self.out_edges = int(parts[1])
+        self.in_edges = int(float(parts[0]))
+        self.out_edges = int(float(parts[1]))
         pageranks = []
         while parts:
             active = parts.pop(0) == "1"

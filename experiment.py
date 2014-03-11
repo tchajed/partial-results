@@ -3,14 +3,14 @@
 
 from __future__ import print_function, division
 
+import subprocess
+import os
+from os.path import join, exists
+
 import yaml
 import numpy as np
 from sklearn.svm import SVR
 from sklearn.linear_model import ARDRegression
-
-import subprocess
-import os
-from os.path import join, exists
 
 
 class GraphFile(object):
@@ -25,17 +25,20 @@ class GraphFile(object):
       features for this graph
 
     """
+
     def __init__(self, prefix, graph_format="snap", pagerank_prefix=None,
-            feature_prefix=None):
+                 feature_prefix=None):
         self.prefix = prefix
         self.graph_format = graph_format
         self.pagerank_prefix = pagerank_prefix
         self.feature_prefix = feature_prefix
+
     def args(self):
         """ Format this graph as a pair of arguments. """
         args = ["--graph", self.prefix,
                 "--format", self.graph_format]
         return args
+
     def __repr__(self):
         s = "%s [%s]" % (self.prefix, self.graph_format)
         if self.pagerank_prefix is not None:
@@ -47,32 +50,37 @@ class GraphFile(object):
 
 class GraphLibrary(object):
     """ A collection of available graphs, indexed by name. """
+
     def __init__(self, graphs):
         self.graphs = graphs
+
     @classmethod
     def from_yaml(cls, fname):
         def load_graph(prefix, d):
             graph_prefix = join(prefix, d["prefix"])
             pagerank_prefix = None
-            if d.has_key("pagerank_prefix"):
+            if "pagerank_prefix" in d:
                 pagerank_prefix = join(prefix, d.get("pagerank_prefix"))
             feature_prefix = None
-            if d.has_key("feature_prefix"):
+            if "feature_prefix" in d:
                 feature_prefix = join(prefix, d.get("feature_prefix"))
             graph = GraphFile(graph_prefix,
-                    graph_format=d.get("format", "snap"),
-                    pagerank_prefix=pagerank_prefix,
-                    feature_prefix=feature_prefix)
+                              graph_format=d.get("format", "snap"),
+                              pagerank_prefix=pagerank_prefix,
+                              feature_prefix=feature_prefix)
             name = d["name"]
-            return (name, graph)
+            return name, graph
+
         with open(fname, "r") as f:
             o = yaml.load(f)
             prefix = o.get("prefix", "")
             graphs = o["graphs"]
             graph_tuples = [load_graph(prefix, graph) for graph in graphs]
             return GraphLibrary(dict(graph_tuples))
+
     def __getitem__(self, name):
         return self.graphs[name]
+
     def get(self, name):
         return self.graphs.get(name)
 
@@ -80,6 +88,7 @@ class GraphLibrary(object):
 class AbstractCli(object):
     program = None
     is_mpi = False
+
     def run_args(self):
         args = ["mpiexec"]
         if self.is_mpi:
@@ -90,6 +99,7 @@ class AbstractCli(object):
         args.append(self.program)
         args.extend(self.args())
         return args
+
     def run(self):
         args = [str(arg) for arg in self.run_args()]
         print("running: ", " ".join(args))
@@ -105,8 +115,9 @@ class SampleCli(AbstractCli):
         self.algorithm = algorithm
         self.graph = graph
         self.output = output
-        if output.graph_format not in  ["tsv", "snap"]:
+        if output.graph_format not in ["tsv", "snap"]:
             raise ValueError("sample cli always outputs in tsv/snap format")
+
     def args(self):
         args = self.graph.args()
         if self.algorithm["name"] == "forest_fire":
@@ -126,6 +137,7 @@ class PartialResultsCli(AbstractCli):
         self.params = params
         self.graph = graph
         self.prefix = prefix
+
     def args(self):
         args = self.graph.args()
         if self.graph.pagerank_prefix is not None:
@@ -144,11 +156,12 @@ class Features(object):
     def __init__(self, names, data):
         self.names = list(names)
         self.data = np.array(data)
+
     @classmethod
     def from_file(cls, fname):
         with open(fname, "r") as f:
             header_line = f.readline().strip()
-# try to identify separator, falling back to comma
+            # try to identify separator, falling back to comma
             sep = ","
             for try_sep in ["|", "\t"]:
                 if header_line.find(try_sep) != -1:
@@ -159,17 +172,21 @@ class Features(object):
             for l in f:
                 line = l.strip()
                 data_row = [0.0 if v == "" else float(v) for v in
-                        line.split(sep)]
+                            line.split(sep)]
                 data.append(data_row)
             return Features(names, data)
+
     def to_mat(self):
         return self.data
+
     def to_col(self):
         assert self.data.shape[1] == 1
-        return self.data[:,0]
+        return self.data[:, 0]
+
     def to_row(self):
-        assert data.shape[0] == 1
-        return data[0,:]
+        assert self.data.shape[0] == 1
+        return self.data[0, :]
+
     def __getitem__(self, features):
         indexes = []
         for feat in features:
@@ -178,6 +195,7 @@ class Features(object):
                 raise ValueError("unknown feature " + feat)
             indexes.append(idx)
         return Features(features, self.data[:, indexes])
+
     def __repr__(self):
         return "".join(["\t".join(self.names), "\n", repr(self.data)])
 
@@ -196,15 +214,17 @@ class Evaluation(object):
         else:
             raise ValueError("unknown sklearn regression algorithm " + name)
         self.model = model
+
     def train(self, train_fname):
         features = Features.from_file(train_fname)
         x_mat = features[self.features].to_mat()
         y = features[(self.target_feature,)].to_col()
         self.model.fit(x_mat, y)
+
     def test_error(self, test_fname):
         features = Features.from_file(test_fname)
         x_mat = features[self.features].to_mat()
-        y = features[self.target_feature,].to_col()
+        y = features[self.target_feature, ].to_col()
         y_hat = self.model.predict(x_mat)
         return np.linalg.norm(y - y_hat)
 
@@ -219,12 +239,14 @@ class Experiment(object):
         self.sample = o["sample"]
         self.run = o["run"]
         self.evaluate = o["evaluate"]
+
     @classmethod
     def from_yaml(cls, fname):
         """ Load an experiment from a YAML file. """
         with open(fname, "r") as f:
             o = yaml.load(f)
             return Experiment(o)
+
     def run_trial(self, graph, name, output_dir):
         if not exists(output_dir):
             os.makedirs(output_dir)
@@ -234,8 +256,8 @@ class Experiment(object):
 
         sampled_dir = join(output_dir, name + "-sample-output")
         partial_results_cli = PartialResultsCli(self.run, sampled,
-                sampled_dir)
-# run twice, first just to generate pageranks
+                                                sampled_dir)
+        # run twice, first just to generate pageranks
         partial_results_cli.run()
         partial_results_cli.run()
 
@@ -256,19 +278,20 @@ class Experiment(object):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--graph",
-            help="input graph name")
+                        help="input graph name")
     parser.add_argument("--graph_library",
-            default="graphs.yaml",
-            help="graph database filename")
+                        default="graphs.yaml",
+                        help="graph database filename")
     parser.add_argument("--experiment",
-            help="experiment YAML configuration file")
+                        help="experiment YAML configuration file")
     parser.add_argument("-n", "--name",
-            help="experiment name")
+                        help="experiment name")
     parser.add_argument("--output",
-            help="output directory")
+                        help="output directory")
     args = parser.parse_args()
 
     graph_lib = GraphLibrary.from_yaml(args.graph_library)

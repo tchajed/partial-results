@@ -6,15 +6,16 @@ import os
 import gzip
 from os.path import join, split, expanduser
 import math
-import numpy as np
 import sys
 from random import random
+
+import numpy as np
 
 
 class VertexFeatures(object):
     def __init__(self, line):
         parts = line.split()
-        parts.pop(0) # vid
+        parts.pop(0)  # vid
         self.in_edges = int(float(parts[0]))
         self.out_edges = int(float(parts[1]))
         pageranks = []
@@ -111,9 +112,8 @@ def sample_vertices(vertices, p):
         pr_avg += v.final_pagerank()
     pr_avg /= len(vertices)
     return [v for v in vertices
-            if v.final_pagerank() > pr_avg or
-               v.final_pagerank() < pr_avg and random() < p
-    ]
+            if (v.final_pagerank() > pr_avg or
+                v.final_pagerank() < pr_avg and random() < p)]
 
 
 def prefix_files(prefix):

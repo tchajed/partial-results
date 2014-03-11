@@ -2,7 +2,6 @@
 
 from __future__ import print_function
 
-from sklearn.svm import SVR
 from sklearn.linear_model import ARDRegression
 import numpy as np
 
